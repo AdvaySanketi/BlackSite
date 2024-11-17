@@ -1,5 +1,5 @@
 import { useRouter } from "next/router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/card";
 import { Input } from "@/components/input";
@@ -17,30 +17,79 @@ import {
 
 export default function GoalSettingPage() {
   const router = useRouter();
+  const [goals, setGoals] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [newGoal, setNewGoal] = useState({
+    title: "",
+    target_amount: "",
+    deadline: "",
+    goalType: "",
+    current_amount: 0,
+  });
 
-  const [goals, setGoals] = useState([
-    {
-      id: 1,
-      name: "Emergency Fund",
-      target: 10000,
-      current: 5000,
-      deadline: "2023-12-31",
-    },
-    {
-      id: 2,
-      name: "New Car",
-      target: 25000,
-      current: 15000,
-      deadline: "2024-06-30",
-    },
-    {
-      id: 3,
-      name: "Vacation",
-      target: 5000,
-      current: 2000,
-      deadline: "2023-08-31",
-    },
-  ]);
+  useEffect(() => {
+    async function fetchGoals() {
+      try {
+        const authToken = localStorage.getItem("authToken");
+        const res = await fetch("http://localhost:5000/api/goals", {
+          method: "GET",
+          headers: {
+            "auth-token": authToken,
+            "Content-Type": "application/json",
+          },
+        });
+        const data = await res.json();
+        setGoals(data);
+      } catch (error) {
+        console.error("Failed to fetch goals", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchGoals();
+  }, []);
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setNewGoal((prevGoal) => ({
+      ...prevGoal,
+      [name]: value,
+    }));
+  };
+
+  const handleGoalSubmit = async (e) => {
+    e.preventDefault();
+
+    const newGoalv2 = {
+      title: newGoal.title,
+      goalType: newGoal.goalType,
+      deadline: newGoal.deadline,
+      target_amount: parseInt(newGoal.target_amount, 10),
+    };
+
+    try {
+      const authToken = localStorage.getItem("authToken");
+      const res = await fetch("http://localhost:5000/api/goals/add", {
+        method: "POST",
+        headers: {
+          "auth-token": authToken,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(newGoalv2),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to create new goal");
+      }
+
+      const data = await res.json();
+      setGoals((prevGoals) => [...prevGoals, newGoal]);
+      setNewGoal({ title: "", target_amount: "", deadline: "", goalType: "" });
+    } catch (error) {
+      console.error("Error submitting goal:", error);
+    }
+  };
 
   return (
     <div className="flex min-h-screen bg-gray-900 text-gray-100">
@@ -105,12 +154,15 @@ export default function GoalSettingPage() {
             <CardTitle>Add New Goal</CardTitle>
           </CardHeader>
           <CardContent>
-            <form className="space-y-4">
+            <form className="space-y-4" onSubmit={handleGoalSubmit}>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="goal-name">Goal Name</Label>
                   <Input
                     id="goal-name"
+                    name="title"
+                    value={newGoal.title}
+                    onChange={handleInputChange}
                     placeholder="e.g., Emergency Fund"
                     className="bg-gray-700 border-gray-600 text-white"
                     required={true}
@@ -120,7 +172,10 @@ export default function GoalSettingPage() {
                   <Label htmlFor="goal-amount">Target Amount</Label>
                   <Input
                     id="goal-amount"
+                    name="target_amount"
                     type="number"
+                    value={newGoal.target_amount}
+                    onChange={handleInputChange}
                     placeholder="10000"
                     className="bg-gray-700 border-gray-600 text-white"
                     required={true}
@@ -130,7 +185,10 @@ export default function GoalSettingPage() {
                   <Label htmlFor="goal-deadline">Deadline</Label>
                   <Input
                     id="goal-deadline"
+                    name="deadline"
                     type="date"
+                    value={newGoal.deadline}
+                    onChange={handleInputChange}
                     className="bg-gray-700 border-gray-600 text-white"
                     required={true}
                   />
@@ -139,7 +197,10 @@ export default function GoalSettingPage() {
                   <Label htmlFor="goal-type">Goal Type</Label>
                   <Input
                     id="goal-type"
-                    type="test"
+                    name="goalType"
+                    type="text"
+                    value={newGoal.goalType}
+                    onChange={handleInputChange}
                     placeholder="Eg., Debt Payoff, Savings, Investment, etc."
                     className="bg-gray-700 border-gray-600 text-white"
                     required={true}
@@ -151,7 +212,7 @@ export default function GoalSettingPage() {
                   type="submit"
                   className="bg-green-500 hover:bg-green-600"
                 >
-                  Create Goal
+                  Add Goal
                 </Button>
               </div>
             </form>
@@ -159,38 +220,46 @@ export default function GoalSettingPage() {
         </Card>
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {goals.map((goal) => (
-            <Card key={goal.id} className="bg-gray-800 border-gray-700">
-              <CardHeader className="text-center">
-                <CardTitle>{goal.name}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <span>Progress</span>
-                    <span>
-                      {((goal.current / goal.target) * 100).toFixed(0)}%
-                    </span>
+          {loading ? (
+            <p>Loading goals...</p>
+          ) : (
+            goals.map((goal) => (
+              <Card key={goal.id} className="bg-gray-800 border-gray-700">
+                <CardHeader className="text-center">
+                  <CardTitle>{goal.title}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span>Progress</span>
+                      <span>
+                        {(
+                          (goal.current_amount / goal.target_amount) *
+                          100
+                        ).toFixed(0)}
+                        %
+                      </span>
+                    </div>
+                    <Progress
+                      value={(goal.current_amount / goal.target_amount) * 100}
+                      className="w-full"
+                    />
+                    <div className="flex justify-between text-sm text-gray-400">
+                      <span>${goal.current_amount}</span>
+                      <span>${goal.target_amount}</span>
+                    </div>
+                    <div className="flex justify-between mt-4">
+                      <span className="text-sm text-gray-400">Deadline</span>
+                      <span className="text-sm">{goal.deadline}</span>
+                    </div>
+                    <Button className="w-full mt-4 bg-green-500 hover:bg-green-600">
+                      Update Progress
+                    </Button>
                   </div>
-                  <Progress
-                    value={(goal.current / goal.target) * 100}
-                    className="w-full"
-                  />
-                  <div className="flex justify-between text-sm text-gray-400">
-                    <span>${goal.current}</span>
-                    <span>${goal.target}</span>
-                  </div>
-                  <div className="flex justify-between mt-4">
-                    <span className="text-sm text-gray-400">Deadline</span>
-                    <span className="text-sm">{goal.deadline}</span>
-                  </div>
-                  <Button className="w-full mt-4 bg-green-500 hover:bg-green-600">
-                    Update Progress
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            ))
+          )}
         </div>
       </main>
     </div>

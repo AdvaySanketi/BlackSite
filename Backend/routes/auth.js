@@ -9,14 +9,28 @@ const { body, validationResult } = require("express-validator");
 router.post(
   "/signup",
   [
-    body(
-      "username",
-      "Enter a valid username (The username should be at least 3 characters long)"
-    ).isLength({ min: 3 }),
+    body("username", "Username must be at least 3 characters long").isLength({
+      min: 3,
+    }),
     body("email", "Enter a valid email").isEmail(),
-    body("password", "The password should be 5 characters long").isLength({
+    body("password", "Password must be at least 5 characters long").isLength({
       min: 5,
     }),
+    body("dob", "Enter a valid date of birth").isISO8601(),
+    body("phone", "Phone number must be 10 characters long").isLength({
+      min: 10,
+    }),
+    body("account_type", "Account type is required").notEmpty(),
+    body("balance", "Balance must be a number").isNumeric(),
+    body("income_amount", "Income amount must be a number").isNumeric(),
+    body("income_source", "Income source is required").notEmpty(),
+    body("income_description", "Income description is required").notEmpty(),
+    body("savings_target", "Savings target must be a number").isNumeric(),
+    body("savings_title", "Savings title is required").notEmpty(),
+    body(
+      "savings_deadline",
+      "Savings deadline must be a valid date"
+    ).isISO8601(),
   ],
   async (req, res) => {
     const errors = validationResult(req);
@@ -26,53 +40,75 @@ router.post(
     }
 
     try {
+      const {
+        username,
+        email,
+        password,
+        dob,
+        phone,
+        account_type,
+        balance,
+        income_amount,
+        income_source,
+        income_description,
+        savings_target,
+        savings_title,
+        savings_deadline,
+      } = req.body;
+
       db.query(
-        "SELECT * FROM users WHERE name = ?",
-        [req.body.username],
+        "SELECT * FROM UserProfile WHERE Name = ? OR Email = ?",
+        [username, email],
         async (err, result) => {
           if (result.length > 0) {
             return res.status(400).json({
               error:
-                "Username is already taken. Please try again with a different username",
+                "Username or email is already taken. Please try again with different credentials.",
             });
           }
 
+          const salt = await bcrypt.genSalt();
+          const securePass = await bcrypt.hash(password.trim(), salt);
+
           db.query(
-            "SELECT * FROM users WHERE email = ?",
-            [req.body.email],
-            async (err, result) => {
-              if (result.length > 0) {
-                return res.status(400).json({
-                  error:
-                    "User with given email already exists. Please try again with another email",
-                });
-              }
+            "INSERT INTO UserProfile (Name, Email, PASSWORD, DOB, Phone) VALUES (?, ?, ?, ?, ?)",
+            [username.trim(), email, securePass, dob, phone],
+            (err, result) => {
+              if (err) throw err;
 
-              let password = req.body.password.trim();
-              if (password.length < 5) {
-                return res
-                  .status(400)
-                  .json({ error: "Please enter a valid password" });
-              }
-
-              const salt = await bcrypt.genSalt();
-              let securePass = await bcrypt.hash(password, salt);
+              const userId = result.insertId;
 
               db.query(
-                "INSERT INTO users (name, email, password) VALUES (?, ?, ?)",
-                [req.body.username.trim(), req.body.email, securePass],
-                (err, result) => {
+                "INSERT INTO account (USERID, Account_Type, Balance) VALUES (?, ?, ?)",
+                [userId, account_type, balance],
+                (err) => {
                   if (err) throw err;
 
-                  const userId = result.insertId;
-                  const data = {
-                    user: {
-                      id: userId,
-                    },
-                  };
-                  const authToken = jwt.sign(data, "zephyr");
-                  success = true;
-                  res.json({ success, authToken });
+                  db.query(
+                    "INSERT INTO income (User_ID, Amount, Source_type, Description) VALUES (?, ?, ?, ?)",
+                    [userId, income_amount, income_source, income_description],
+                    (err) => {
+                      if (err) throw err;
+
+                      db.query(
+                        "INSERT INTO savings_goal (User_ID, target_amount, current_amount, title, deadline) VALUES (?, ?, 0, ?, ?)",
+                        [
+                          userId,
+                          savings_target,
+                          savings_title,
+                          savings_deadline,
+                        ],
+                        (err) => {
+                          if (err) throw err;
+
+                          const data = { user: { id: userId } };
+                          const authToken = jwt.sign(data, "blacksite");
+                          success = true;
+                          res.json({ success, authToken });
+                        }
+                      );
+                    }
+                  );
                 }
               );
             }
@@ -81,58 +117,50 @@ router.post(
       );
     } catch (error) {
       console.error(error.message);
-      res.status(500).send("Some error occurred");
+      res.status(500).send("An error occurred while processing your request.");
     }
   }
 );
 
-// Route 2: Authenticate a user using POST, no login required
+// Route 2: Login a user using POST
 router.post(
   "/login",
   [
-    body("username", "Enter a valid username").isLength({ min: 3 }),
-    body("password", "The password should be 5 characters long").isLength({
-      min: 5,
-    }),
+    body("email", "Enter a valid email").isEmail(),
+    body("password", "Password cannot be blank").exists(),
   ],
   async (req, res) => {
     const errors = validationResult(req);
-    let success = false;
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { username, password } = req.body;
+    const { email, password } = req.body;
 
     try {
       db.query(
-        "SELECT * FROM users WHERE name = ?",
-        [username],
+        "SELECT * FROM UserProfile WHERE Email = ?",
+        [email],
         async (err, result) => {
           if (result.length === 0) {
-            return res
-              .status(400)
-              .json({ error: "Please try again with valid credentials." });
+            return res.status(400).json({ error: "Invalid email or password" });
           }
 
           const user = result[0];
-          const passCompare = await bcrypt.compare(password, user.password);
-          if (!passCompare) {
-            success = false;
-            return res.status(400).json({
-              success,
-              error: "The Password entered is incorrect. Please try again.",
-            });
+          const passwordCompare = await bcrypt.compare(password, user.Password);
+
+          if (!passwordCompare) {
+            return res.status(400).json({ error: "Invalid email or password" });
           }
 
           const data = {
             user: {
-              id: user.id,
+              id: user.User_ID,
             },
           };
-          const authToken = jwt.sign(data, "zephyr");
-          success = true;
-          res.json({ success, authToken });
+
+          const authToken = jwt.sign(data, "blacksite");
+          res.json({ authToken });
         }
       );
     } catch (error) {

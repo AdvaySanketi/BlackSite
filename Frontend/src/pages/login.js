@@ -1,4 +1,5 @@
 import { useRouter } from "next/router";
+import { useState } from "react";
 import { Button } from "@/components/button";
 import {
   Card,
@@ -15,9 +16,36 @@ import Link from "next/link";
 
 export default function LoginPage() {
   const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
 
-  const handleSignIn = () => {
-    router.push("/");
+  const handleSignIn = async () => {
+    if (!email || !password) {
+      setError("Please fill in all fields.");
+      return;
+    }
+
+    try {
+      const response = await fetch("http://localhost:5000/api/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        localStorage.setItem("authToken", result.authToken);
+        router.push("/");
+      } else {
+        setError(result.error || "Login failed. Please try again.");
+      }
+    } catch (err) {
+      setError("An error occurred. Please try again later.");
+    }
   };
 
   return (
@@ -42,6 +70,8 @@ export default function LoginPage() {
               placeholder="Enter your email address"
               type="email"
               className="bg-gray-700 border-gray-600 text-white"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               required={true}
             />
           </div>
@@ -52,9 +82,14 @@ export default function LoginPage() {
               type="password"
               placeholder="Enter your password"
               className="bg-gray-700 border-gray-600 text-white"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
               required={true}
             />
           </div>
+          {error && (
+            <p className="text-red-500 text-sm mt-4 text-center">{error}</p>
+          )}
         </CardContent>
         <CardFooter className="flex flex-col items-center">
           <Button

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useRouter } from "next/router";
 import { Button } from "@/components/button";
 import {
@@ -12,11 +13,43 @@ import { Input } from "@/components/input";
 import { Label } from "@/components/label";
 import { DollarSign } from "lucide-react";
 import Link from "next/link";
+import { UserContext } from "@/context/userContext";
+import { useContext } from "react";
 
 export default function SignUpPage() {
   const router = useRouter();
+  const { setUserInfo } = useContext(UserContext);
+
+  const [formData, setFormData] = useState({
+    name: "",
+    password: "",
+    confirmPassword: "",
+  });
+  const [errors, setErrors] = useState({});
+
+  const handleInputChange = (e) => {
+    const { id, value } = e.target;
+    setFormData((prev) => ({ ...prev, [id]: value }));
+  };
+
+  const validateForm = () => {
+    const newErrors = {};
+    if (!formData.name.trim()) newErrors.name = "Name is required.";
+    if (!formData.password) newErrors.password = "Password is required.";
+    if (!formData.confirmPassword)
+      newErrors.confirmPassword = "Confirm Password is required.";
+    if (formData.password !== formData.confirmPassword)
+      newErrors.confirmPassword = "Passwords do not match.";
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   const handleSignup = () => {
+    if (!validateForm()) return;
+    setUserInfo({
+      name: formData.name,
+      password: formData.password,
+    });
     router.push("/onboarding");
   };
 
@@ -38,12 +71,19 @@ export default function SignUpPage() {
           <div className="space-y-2">
             <Label htmlFor="username">Name</Label>
             <Input
-              id="username"
+              id="name"
               placeholder="Enter your name"
               type="text"
-              className="bg-gray-700 border-gray-600 text-white"
-              required={true}
+              className={`bg-gray-700 border-gray-600 text-white ${
+                errors.name ? "border-red-500" : ""
+              }`}
+              value={formData.name}
+              onChange={handleInputChange}
+              required
             />
+            {errors.name && (
+              <p className="text-sm text-red-500">{errors.name}</p>
+            )}
           </div>
           <div className="space-y-2">
             <Label htmlFor="password">Password</Label>
@@ -51,9 +91,16 @@ export default function SignUpPage() {
               id="password"
               type="password"
               placeholder="Create a password"
-              className="bg-gray-700 border-gray-600 text-white"
-              required={true}
+              className={`bg-gray-700 border-gray-600 text-white ${
+                errors.password ? "border-red-500" : ""
+              }`}
+              value={formData.password}
+              onChange={handleInputChange}
+              required
             />
+            {errors.password && (
+              <p className="text-sm text-red-500">{errors.password}</p>
+            )}
           </div>
           <div className="space-y-2">
             <Label htmlFor="confirmPassword">Confirm Password</Label>
@@ -61,9 +108,16 @@ export default function SignUpPage() {
               id="confirmPassword"
               type="password"
               placeholder="Confirm your password"
-              className="bg-gray-700 border-gray-600 text-white"
-              required={true}
+              className={`bg-gray-700 border-gray-600 text-white ${
+                errors.confirmPassword ? "border-red-500" : ""
+              }`}
+              value={formData.confirmPassword}
+              onChange={handleInputChange}
+              required
             />
+            {errors.confirmPassword && (
+              <p className="text-sm text-red-500">{errors.confirmPassword}</p>
+            )}
           </div>
         </CardContent>
         <CardFooter className="flex flex-col items-center">

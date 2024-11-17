@@ -14,6 +14,8 @@ import {
 import { Input } from "@/components/input";
 import { Label } from "@/components/label";
 import { Progress } from "@/components/progress";
+import { useContext } from "react";
+import { UserContext } from "@/context/userContext";
 import { ArrowLeft, ArrowRight, Check, DollarSign } from "lucide-react";
 
 const questionnaire = {
@@ -23,25 +25,25 @@ const questionnaire = {
       questions: [
         {
           question: "What is your full name?",
-          attribute: "Name",
+          attribute: "username",
           type: "text",
           required: true,
         },
         {
           question: "What is your email address?",
-          attribute: "Email",
+          attribute: "email",
           type: "email",
           required: true,
         },
         {
           question: "What is your phone number?",
-          attribute: "Phone",
+          attribute: "phone",
           type: "tel",
           required: true,
         },
         {
           question: "What is your date of birth?",
-          attribute: "DOB",
+          attribute: "dob",
           type: "date",
           required: true,
         },
@@ -52,14 +54,14 @@ const questionnaire = {
       questions: [
         {
           question: "What type of account do you have?",
-          attribute: "Account_Type",
+          attribute: "account_type",
           type: "select",
           options: ["Checking", "Savings", "Investment"],
           required: true,
         },
         {
           question: "What is the current balance in your account?",
-          attribute: "Balance",
+          attribute: "balance",
           type: "number",
           required: true,
         },
@@ -70,20 +72,20 @@ const questionnaire = {
       questions: [
         {
           question: "What is the amount of income you receive?",
-          attribute: "Amount",
+          attribute: "income_amount",
           type: "number",
           required: true,
         },
         {
           question: "What is the source of the income?",
-          attribute: "Source_type",
+          attribute: "income_source",
           type: "select",
           options: ["Salary", "Freelance", "Investments", "Other"],
           required: true,
         },
         {
           question: "Please provide a description of the income source.",
-          attribute: "Description",
+          attribute: "income_description",
           type: "textarea",
           required: true,
         },
@@ -94,19 +96,19 @@ const questionnaire = {
       questions: [
         {
           question: "What is your savings goal target amount?",
-          attribute: "target_amount",
+          attribute: "savings_target",
           type: "number",
           required: true,
         },
         {
           question: "What is the title of your savings goal?",
-          attribute: "title",
+          attribute: "savings_title",
           type: "text",
           required: true,
         },
         {
           question: "By when do you aim to achieve your savings goal?",
-          attribute: "deadline",
+          attribute: "savings_deadline",
           type: "date",
           required: true,
         },
@@ -115,11 +117,12 @@ const questionnaire = {
   ],
 };
 
-export default function EnhancedOnboarding() {
+export default function Onboarding() {
   const router = useRouter();
   const [currentTopic, setCurrentTopic] = useState(0);
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [formData, setFormData] = useState({});
+  const { userInfo } = useContext(UserContext);
 
   const topics = questionnaire.questionnaire;
   const currentTopicData = topics[currentTopic];
@@ -161,13 +164,35 @@ export default function EnhancedOnboarding() {
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+
     if (questionNumber < totalQuestions) {
       goToNextQuestion();
-    } else {
-      console.log("Form submitted:", formData);
-      router.push("/");
+      return;
+    }
+
+    const payload = { ...formData, ...userInfo };
+
+    try {
+      const response = await fetch("http://localhost:5000/api/auth/signup", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        localStorage.setItem("authToken", result.authToken);
+        router.push("/");
+      } else {
+        alert(result.error || "Signup failed. Please try again.");
+      }
+    } catch (err) {
+      alert("An error occurred. Please try again later.");
     }
   };
 

@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import { Button } from "@/components/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/card";
@@ -12,56 +13,86 @@ import {
 } from "@/components/table";
 import {
   DollarSign,
-  Search,
-  Filter,
   Plus,
+  LogOut,
+  Filter,
+  Search,
   PieChart,
   CreditCard,
-  Wallet,
   Target,
-  LogOut,
 } from "lucide-react";
+import Modal from "@/components/modal";
 
 export default function TransactionsPage() {
   const router = useRouter();
+  const [transactions, setTransactions] = useState([]);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [newTransaction, setNewTransaction] = useState({
+    Description: "",
+    Amount: "",
+    Category: "",
+    Date: "",
+  });
 
-  const transactions = [
-    {
-      id: 1,
-      date: "2023-04-01",
-      description: "Grocery Shopping",
-      amount: -120.5,
-      category: "Food",
-    },
-    {
-      id: 2,
-      date: "2023-04-02",
-      description: "Salary Deposit",
-      amount: 3000.0,
-      category: "Income",
-    },
-    {
-      id: 3,
-      date: "2023-04-03",
-      description: "Electric Bill",
-      amount: -85.2,
-      category: "Utilities",
-    },
-    {
-      id: 4,
-      date: "2023-04-05",
-      description: "Online Course",
-      amount: -49.99,
-      category: "Education",
-    },
-    {
-      id: 5,
-      date: "2023-04-07",
-      description: "Restaurant Dinner",
-      amount: -65.3,
-      category: "Dining Out",
-    },
-  ];
+  useEffect(() => {
+    async function fetchTransactions() {
+      try {
+        const authToken = localStorage.getItem("authToken");
+        const res = await fetch("http://localhost:5000/api/transactions", {
+          method: "GET",
+          headers: {
+            "auth-token": authToken,
+            "Content-Type": "application/json",
+          },
+        });
+        const data = await res.json();
+        console.log(data);
+        setTransactions(data);
+      } catch (error) {
+        console.error("Failed to fetch transactions", error);
+      }
+    }
+
+    fetchTransactions();
+  }, []);
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setNewTransaction((prevTransaction) => ({
+      ...prevTransaction,
+      [name]: value,
+    }));
+  };
+
+  const handleAddTransaction = async (e) => {
+    e.preventDefault();
+
+    try {
+      const authToken = localStorage.getItem("authToken");
+      const res = await fetch("http://localhost:5000/api/transactions/add", {
+        method: "POST",
+        headers: {
+          "auth-token": authToken,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(newTransaction),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to add transaction");
+      }
+
+      const data = await res.json();
+      setTransactions((prevTransactions) => [
+        ...prevTransactions,
+        newTransaction,
+      ]);
+      setNewTransaction({ description: "", amount: "", category: "" });
+      setModalOpen(false);
+    } catch (error) {
+      console.error("Error adding transaction:", error);
+    }
+  };
 
   return (
     <div className="flex min-h-screen bg-gray-900 text-gray-100">
@@ -119,7 +150,10 @@ export default function TransactionsPage() {
       <main className="flex-1 p-8">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-3xl font-bold">Transactions</h2>
-          <Button className="bg-green-500 hover:bg-green-600 flex items-center">
+          <Button
+            className="bg-green-500 hover:bg-green-600 flex items-center"
+            onClick={() => setModalOpen(true)}
+          >
             <Plus className="mr-2 h-4 w-4" /> Add Transaction
           </Button>
         </div>
@@ -155,17 +189,17 @@ export default function TransactionsPage() {
               <TableBody>
                 {transactions.map((transaction) => (
                   <TableRow key={transaction.id}>
-                    <TableCell>{transaction.date}</TableCell>
-                    <TableCell>{transaction.description}</TableCell>
-                    <TableCell>{transaction.category}</TableCell>
+                    <TableCell>{transaction.Date}</TableCell>
+                    <TableCell>{transaction.Description}</TableCell>
+                    <TableCell>{transaction.Category}</TableCell>
                     <TableCell
                       className={`text-right ${
-                        transaction.amount > 0
+                        transaction.Amount > 0
                           ? "text-green-500"
                           : "text-red-500"
                       }`}
                     >
-                      ₹{Math.abs(transaction.amount).toFixed(2)}
+                      ₹{Math.abs(transaction.Amount).toFixed(2)}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -173,6 +207,70 @@ export default function TransactionsPage() {
             </Table>
           </CardContent>
         </Card>
+
+        <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)}>
+          <Card className="bg-gray-800 border border-transparent">
+            <CardHeader>
+              <CardTitle>Add New Transaction</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleAddTransaction}>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Input
+                      placeholder="Description"
+                      name="description"
+                      value={newTransaction.description}
+                      onChange={handleInputChange}
+                      className="bg-gray-700 border-gray-600 text-white"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Input
+                      placeholder="Amount"
+                      name="amount"
+                      type="number"
+                      value={newTransaction.amount}
+                      onChange={handleInputChange}
+                      className="bg-gray-700 border-gray-600 text-white"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Input
+                      placeholder="Category"
+                      name="category"
+                      value={newTransaction.category}
+                      onChange={handleInputChange}
+                      className="bg-gray-700 border-gray-600 text-white"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Input
+                      placeholder="Date"
+                      name="date"
+                      value={newTransaction.date}
+                      onChange={handleInputChange}
+                      type="date"
+                      className="bg-gray-700 border-gray-600 text-white"
+                      required
+                    />
+                  </div>
+                  <div className="flex justify-center mt-4">
+                    <Button
+                      type="submit"
+                      className="bg-green-500 hover:bg-green-600"
+                    >
+                      Add Transaction
+                    </Button>
+                  </div>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </Modal>
       </main>
     </div>
   );

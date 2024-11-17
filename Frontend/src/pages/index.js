@@ -1,4 +1,5 @@
 import { useRouter } from "next/router";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/button";
 import {
   Card,
@@ -33,48 +34,59 @@ import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis } from "recharts";
 
 export default function DashboardPage() {
   const router = useRouter();
-
-  const recentTransactions = [
-    {
-      id: 1,
-      description: "Grocery Shopping",
-      amount: -120.5,
-      date: "2023-04-15",
+  const [loading, setLoading] = useState(true);
+  const [dashboardData, setDashboardData] = useState({
+    recentTransactions: [],
+    spendingData: [],
+    monthlySpendingData: [],
+    summary: {
+      totalIncome: 0,
+      totalExpenses: 0,
+      totalBalance: 0,
+      totalSavings: 0,
     },
-    {
-      id: 2,
-      description: "Salary Deposit",
-      amount: 3000.0,
-      date: "2023-04-01",
-    },
-    { id: 3, description: "Electric Bill", amount: -85.2, date: "2023-04-10" },
-    { id: 4, description: "Online Course", amount: -49.99, date: "2023-04-05" },
-    {
-      id: 5,
-      description: "Restaurant Dinner",
-      amount: -65.3,
-      date: "2023-04-08",
-    },
-  ];
+  });
 
-  const spendingData = [
-    { category: "Housing", amount: 1200 },
-    { category: "Food", amount: 400 },
-    { category: "Transportation", amount: 200 },
-    { category: "Utilities", amount: 150 },
-    { category: "Entertainment", amount: 100 },
-    { category: "Healthcare", amount: 300 },
-    { category: "Misc", amount: 150 },
-  ];
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        const authToken = localStorage.getItem("authToken");
+        const response = await fetch("http://localhost:5000/api/dashboard", {
+          method: "GET",
+          headers: {
+            "auth-token": authToken,
+            "Content-Type": "application/json",
+          },
+        });
+        const data = await response.json();
 
-  const monthlySpendingData = [
-    { name: "Jan", amount: 2500 },
-    { name: "Feb", amount: 2300 },
-    { name: "Mar", amount: 2800 },
-    { name: "Apr", amount: 2400 },
-    { name: "May", amount: 2600 },
-    { name: "Jun", amount: 2200 },
-  ];
+        const transformedTransactions = data.recentTransactions.map((tx) => ({
+          ...tx,
+          date: new Date(tx.date).toLocaleDateString(),
+          amount: parseFloat(tx.amount),
+        }));
+
+        setDashboardData({
+          ...data,
+          recentTransactions: transformedTransactions,
+        });
+      } catch (error) {
+        console.error("Error fetching dashboard data:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gray-900">
+        <div className="text-xl text-gray-100">Loading dashboard...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen bg-gray-900 text-gray-100">
@@ -87,9 +99,7 @@ export default function DashboardPage() {
           <Button
             variant="ghost"
             className="w-full justify-start bg-gray-700 rounded-md hover:bg-gray-600"
-            onClick={() => {
-              router.push("/");
-            }}
+            onClick={() => router.push("/")}
           >
             <PieChart className="mr-2 h-4 w-4" />
             Dashboard
@@ -97,9 +107,7 @@ export default function DashboardPage() {
           <Button
             variant="ghost"
             className="w-full justify-start rounded-md hover:bg-gray-600"
-            onClick={() => {
-              router.push("/transactions");
-            }}
+            onClick={() => router.push("/transactions")}
           >
             <CreditCard className="mr-2 h-4 w-4" />
             Transactions
@@ -107,9 +115,7 @@ export default function DashboardPage() {
           <Button
             variant="ghost"
             className="w-full justify-start rounded-md hover:bg-gray-600"
-            onClick={() => {
-              router.push("/goals");
-            }}
+            onClick={() => router.push("/goals")}
           >
             <Target className="mr-2 h-4 w-4" />
             Goals
@@ -118,9 +124,7 @@ export default function DashboardPage() {
             <Button
               variant="ghost"
               className="w-full justify-start rounded-md bg-gray-700 hover:bg-gray-600 px-7 py-5 text-center"
-              onClick={() => {
-                router.push("/login");
-              }}
+              onClick={() => router.push("/login")}
             >
               <LogOut className="mr-2 h-4 w-4" />
               Logout
@@ -140,8 +144,9 @@ export default function DashboardPage() {
               <DollarSign className="h-4 w-4 text-green-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">$12,345.67</div>
-              <p className="text-xs text-gray-400">+2.5% from last month</p>
+              <div className="text-2xl font-bold">
+                ${parseFloat(dashboardData.summary.totalBalance).toFixed(2)}
+              </div>
             </CardContent>
           </Card>
           <Card className="bg-gray-800 border-gray-700">
@@ -150,8 +155,9 @@ export default function DashboardPage() {
               <ArrowUpRight className="h-4 w-4 text-green-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">$4,567.89</div>
-              <p className="text-xs text-gray-400">+10% from last month</p>
+              <div className="text-2xl font-bold">
+                ${parseFloat(dashboardData.summary.totalIncome).toFixed(2)}
+              </div>
             </CardContent>
           </Card>
           <Card className="bg-gray-800 border-gray-700">
@@ -160,8 +166,9 @@ export default function DashboardPage() {
               <ArrowDownRight className="h-4 w-4 text-red-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">$2,345.67</div>
-              <p className="text-xs text-gray-400">-5% from last month</p>
+              <div className="text-2xl font-bold">
+                ${parseFloat(dashboardData.summary.totalExpenses).toFixed(2)}
+              </div>
             </CardContent>
           </Card>
           <Card className="bg-gray-800 border-gray-700">
@@ -170,8 +177,9 @@ export default function DashboardPage() {
               <Wallet className="h-4 w-4 text-blue-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">$2,222.00</div>
-              <p className="text-xs text-gray-400">+15% from last month</p>
+              <div className="text-2xl font-bold">
+                ${parseFloat(dashboardData.summary.totalSavings).toFixed(2)}
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -216,26 +224,29 @@ export default function DashboardPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {recentTransactions.map((transaction) => (
-                      <TableRow key={transaction.id}>
-                        <TableCell>{transaction.description}</TableCell>
-                        <TableCell>{transaction.date}</TableCell>
-                        <TableCell
-                          className={`text-right ${
-                            transaction.amount > 0
-                              ? "text-green-500"
-                              : "text-red-500"
-                          }`}
-                        >
-                          ${Math.abs(transaction.amount).toFixed(2)}
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {dashboardData.recentTransactions.map(
+                      (transaction, idx) => (
+                        <TableRow key={idx}>
+                          <TableCell>{transaction.description}</TableCell>
+                          <TableCell>{transaction.date}</TableCell>
+                          <TableCell
+                            className={`text-right ${
+                              transaction.amount > 0
+                                ? "text-green-500"
+                                : "text-red-500"
+                            }`}
+                          >
+                            ${Math.abs(transaction.amount).toFixed(2)}
+                          </TableCell>
+                        </TableRow>
+                      )
+                    )}
                   </TableBody>
                 </Table>
               </CardContent>
             </Card>
           </TabsContent>
+
           <TabsContent value="analytics" className="mt-4">
             <div className="grid gap-4 md:grid-cols-2">
               <Card className="bg-gray-800 border-gray-700">
@@ -247,7 +258,7 @@ export default function DashboardPage() {
                 </CardHeader>
                 <CardContent>
                   <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={spendingData}>
+                    <BarChart data={dashboardData.spendingData}>
                       <XAxis
                         dataKey="category"
                         stroke="#888888"
@@ -280,7 +291,7 @@ export default function DashboardPage() {
                 </CardHeader>
                 <CardContent>
                   <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={monthlySpendingData}>
+                    <BarChart data={dashboardData.monthlySpendingData}>
                       <XAxis
                         dataKey="name"
                         stroke="#888888"
@@ -306,6 +317,7 @@ export default function DashboardPage() {
               </Card>
             </div>
           </TabsContent>
+
           <TabsContent value="reports" className="mt-4">
             <Card className="bg-gray-800 border-gray-700">
               <CardHeader>
